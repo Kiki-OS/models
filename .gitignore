@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtualenv
+.venv/
+venv/
+env/
+
+# Secrets
+.env
+.env.local
+.env.*.local
+.modal.toml
+secrets/
+
+# Build / dist
+dist/
+build/
+*.egg-info/
+
+# Caches / tools
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.hypothesis/
+*.coverage
+htmlcov/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
