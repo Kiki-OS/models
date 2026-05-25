@@ -32,35 +32,58 @@ All endpoints expose an **OpenAI-compatible API** — `agentd`'s provider abstra
 
 ```
 modal/
-  deploy.py            → Modal app definitions and endpoint deployment
-  inference.py         → vLLM inference endpoint
-adapters/
-  <model-name>/        → per-model preprocessing and schema adapters
+  serve.py             → vLLM OpenAI-compatible server (one Modal app per model)
+tests/
+  test_serve.py        → registry contract tests (stdlib only, no Modal/GPU)
 pyproject.toml         → Python project definition
 ```
 
+`serve.py` runs vLLM's own OpenAI server as a subprocess behind Modal's
+`web_server`, so `/v1/chat/completions` (streaming + structured tool calls),
+`/v1/completions` and `/v1/models` come straight from vLLM — byte-identical to
+the local llama.cpp / ollama surface `kiki-provider`'s OpenAI backend already
+speaks.
+
 ---
 
-## Supported model families
+## Supported models
 
-Models are selected based on the hardware class declared in the device manifest. Smaller models (≤ 7B) run on-device; larger ones or user-configured alternatives can route here.
+Defined in the `MODELS` registry in `modal/serve.py` — each pins an HF repo, a
+GPU, and vLLM's matching tool-call parser (so structured tool calls round-trip):
+
+| Key | Model | Tool parser |
+|---|---|---|
+| `llama-3.1-8b` (default) | meta-llama/Llama-3.1-8B-Instruct | `llama3_json` |
+| `qwen2.5-7b` | Qwen/Qwen2.5-7B-Instruct | `hermes` |
+| `granite-3.1-8b` | ibm-granite/granite-3.1-8b-instruct | `granite` |
+
+Add a model by adding a `ModelSpec` to the registry. Smaller models (≤ ~3B) run
+on-device; this service is for larger ones or explicit user opt-in.
 
 ---
 
-## Running locally
+## Deploy
 
-Requires Python 3.11+ and a Modal account.
+Requires a Modal account. Create the `kiki-models-secrets` Modal secret with:
+
+- `KIKI_MODELS_API_KEY` — the bearer the gateway / agentd authenticates with
+- `HF_TOKEN` — to pull gated repos (e.g. Llama)
 
 ```sh
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-# Deploy to Modal
-modal deploy modal/deploy.py
+# Deploy one model (one Modal app per model key):
+MODEL_KEY=llama-3.1-8b modal deploy modal/serve.py
+MODEL_KEY=qwen2.5-7b    modal deploy modal/serve.py
 
-# Run tests
-pytest
+# Contract tests (no Modal/GPU needed):
+python3 tests/test_serve.py     # or: pytest
 ```
+
+Point a device at it by setting its OpenAI-compatible provider `base_url` to
+`https://<workspace>--kiki-models-<model>-serve.modal.run/v1` and `api_key` to
+`KIKI_MODELS_API_KEY` (typically injected by the AI Gateway, not the device).
 
 ---
 
